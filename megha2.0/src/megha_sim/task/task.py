@@ -1,0 +1,50 @@
+"""The `Task` class is just like a struct or Plain Old Data format."""
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+import random
+from simulator_utils.values import (LM_HEARTBEAT_INTERVAL, NETWORK_DELAY,
+                                    InconsistencyType,
+                                    TaskDurationDistributions)
+
+if TYPE_CHECKING:
+    from job import Job
+
+
+class Task(object):
+    """
+    The Task class is just like a struct in languages such as C.
+
+    This is otherwise known as the Plain Old Data format.
+
+    Args:
+        object (object): This is the parent object class
+    """
+
+    def __init__(self, task_id: str, job: Job, duration: int):
+        """
+        Initialise the instance of the Task class.
+
+        Args:
+            task_id (str): The task identifier.
+            job (Job): The instance of the Job to which the Task belongs.
+            duration (int): Duration of the task.
+        """
+        self.task_id = task_id
+        self.start_time = job.start_time
+        self.scheduled_time = None
+        self.end_time: Optional[float] = None
+        self.job = job
+        self.duration = duration
+        self.node_id: Optional[str] = None
+        self.scheduling_attempts=0
+        self.constraints=[]
+        self.communication_delay=0
+        self.repartitions=0
+        self.inconsistencies=0
+        # Partition ID may differ from GM_id if repartitioning
+        self.partition_id: Optional[str] = None
+        self.GM_id = None
+        self.lm = None
+
+ 
+

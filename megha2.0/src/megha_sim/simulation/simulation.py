@@ -38,7 +38,10 @@ class Simulation(object):
         self.config = json.load(open(config))
         self.WORKLOAD_FILE = workload
         self.NUM_LMS=len(self.config["LMs"])
-        self.NUM_GMS=len(self.config["LMs"]["1"]["partitions"])
+        
+        self.NUM_GMS=len(self.config["LMs"]["1"]["partitions"]) 
+       
+
         self.PARTITION_SIZE=len(self.config["LMs"]["1"]["partitions"]["1"][0])-2 #(-2 for the "0b" string in the constraint vector)
         self.total_nodes = self.NUM_GMS * self.NUM_LMS * self.PARTITION_SIZE
         self.NUM_CONSTRAINTS: int = NUM_CONSTRAINTS

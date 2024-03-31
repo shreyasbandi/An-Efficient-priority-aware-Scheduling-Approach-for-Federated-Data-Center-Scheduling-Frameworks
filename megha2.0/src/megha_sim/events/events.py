@@ -603,8 +603,13 @@ class JobArrivalEvent(Event):
         new_events: List[Tuple[float, Event]] = []
         # needs to be assigned to a GM - RR
         
-        JobArrivalEvent.gm_counter = (len(self.job.tasks) %
-                                 self.simulation.NUM_GMS) + 1
+    
+        if(self.job.is_short):  # first 4 gms are for short job and last one is for long gm
+            JobArrivalEvent.gm_counter = (len(self.job.tasks) %
+                                 (self.simulation.NUM_GMS-1)) + 1
+        else:
+            JobArrivalEvent.gm_counter = self.simulation.NUM_GMS
+            print(self.simulation.NUM_GMS)
 
         # assigned_GM --> Handle to the global master object
         assigned_GM: GM = self.simulation.gms[str(JobArrivalEvent.gm_counter)]

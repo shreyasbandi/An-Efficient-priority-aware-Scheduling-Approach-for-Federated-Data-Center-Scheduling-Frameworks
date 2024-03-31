@@ -43,6 +43,7 @@ class Job(object):
         """
 
         job_args: List[str] = line.strip().split()
+        # print(f"job args {a} {job_args}")  -->output is  ['3.425', '3', '19.4115528704', '13.194369558', '15.6015988981', '29.4386901552']
         self.start_time: float = float(job_args[0])
         self.num_tasks: int = int(job_args[1])
         self.simulation = simulation
@@ -57,8 +58,10 @@ class Job(object):
             self.is_short=True
         # self.stat_file=open(TASK_FILE,"a")
         self.vals = [int(float(i)) for i in job_args[3:]]
-        self.ideal_completion_time: Final = max(self.vals)
-        simulator_utils.globals.total_tasks+=self.num_tasks
+        self.ideal_completion_time: Final = max(self.vals)  # ideal completion time is max of task time
+
+        simulator_utils.globals.total_tasks+=self.num_tasks  # counting total number of tasks 
+
         # IF the job's start_time has never been seen before
         if self.start_time not in self.job_start_tstamps:
             # Add it to the dict of start time stamps
@@ -76,6 +79,7 @@ class Job(object):
         self.end_time = self.start_time
 
         # in case we need to explore other distr- retaining Sparrow code as-is
+        
         if task_distribution == TaskDurationDistributions.FROM_FILE:
             self.file_task_execution_time(job_args)
 

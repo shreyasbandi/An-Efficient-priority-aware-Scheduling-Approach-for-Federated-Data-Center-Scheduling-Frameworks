@@ -74,11 +74,18 @@ class GM:
 		
 		self.LMs_list=list(config["LMs"].keys())
 		self.GMs_list=list(config["LMs"]["1"]["partitions"].keys())
-
 		
+		# print(f"LM {self.LMs_list} GM {self.GMs_list}") gives list of lm and gm to gm object
+		
+		#print(f"configLM {config["LMs"]}")
+		# print(config["LMs"]) config[lms] is a dictionary
+
 		for LM_id in config["LMs"]:
 			self.internal_available_nodes[LM_id]=list()
 			self.external_available_nodes[LM_id]=dict()
+			# print(f"internal node {self.internal_available_nodes}") it is a list of internal nodes
+			# print(f"external node {self.external_available_nodes}") it a dict of external nodes
+			
 			for partition_id in config["LMs"][LM_id]["partitions"]:
 
 				if partition_id==self.GM_id:
@@ -89,7 +96,8 @@ class GM:
 					for i in range(0,len(config["LMs"][LM_id]["partitions"][partition_id][0])-2):#to get rid of 0b
 						self.external_available_nodes[LM_id][partition_id].append(str(i))
 		debug_print(f"GM {self.GM_id} initialised")
-
+		# print(f"LM {self.internal_available_nodes}")
+		# print(f"GM {self.external_available_nodes[LM_id][partition_id]}")
 
 	#called on arrival of jobs. Batches resource-task requests and sends to the LM
 	def schedule_job_batched_all(self, job, current_time):
@@ -97,12 +105,14 @@ class GM:
 		job.gm = self
 		job_id=job.job_id
 		self.jobs[job_id]=job
+		# print(f"jobs[job_id] {self.jobs[job_id]}") gives job object
 		no_resources=False
 		task_mapping_request_batch=[] # holds all requests per LM
 		prev_LM=None
 
 		for task_id in self.jobs[job_id].tasks:
 			#if previous task placement was unsuccessful add tasks to task queue
+			
 			if no_resources:
 				self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
 				continue
@@ -170,11 +180,12 @@ class GM:
 		available_LMpartition=False
 		
 		for LM_id in self.LMs_list:
+			# print(f"nodes {self.internal_available_nodes[LM_id]}") gives nodes which are available
 			if len(self.internal_available_nodes[LM_id])>0:
 				available_LMpartition=LM_id
 				break
 
-		if not available_LMpartition:
+		if not available_LMpartition: # if no nodes in internal partions return none
 			return None
 
 		node_id=self.internal_available_nodes[available_LMpartition].pop(0)
@@ -198,6 +209,7 @@ class GM:
 			for GM_id in self.GMs_list:
 				if GM_id==self.GM_id:
 					continue
+				# print(f"external {LM_id} {self.external_available_nodes[LM_id]}")
 				if len(self.external_available_nodes[LM_id][GM_id])>0:
 					available_partition=(LM_id,GM_id)
 					break

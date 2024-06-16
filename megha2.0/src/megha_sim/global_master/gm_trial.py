@@ -60,7 +60,15 @@ class GM:
 		self.simulation = simulation
 		self.RR_counter: int = 0
 		# self.global_view: Dict[str, LMResources] = {}
-		self.task_queue: List[Job] = []
+
+		self.task_queue: List[Job] = []  # queue if no resources are available
+
+		##   made changes here
+		#self.longtasks :List[Job]=[]
+		self.shorttask :List[job]=[]
+
+		## finish
+
 		self.jobs_scheduled: List[Job] = []
 		self.NUM_CONSTRAINTS=NUM_CONSTRAINTS
 		self.random_obj = random.Random()
@@ -99,6 +107,10 @@ class GM:
 		# print(f"LM {self.internal_available_nodes}")
 		# print(f"GM {self.external_available_nodes[LM_id][partition_id]}")
 
+
+	
+	
+
 	#called on arrival of jobs. Batches resource-task requests and sends to the LM
 	def schedule_job_batched_all(self, job, current_time):
 		simulator_utils.globals.jobs_arrived+=1
@@ -110,11 +122,17 @@ class GM:
 		task_mapping_request_batch=[] # holds all requests per LM
 		prev_LM=None
 
+		flag=job.is_short
 		for task_id in self.jobs[job_id].tasks:
+			
 			#if previous task placement was unsuccessful add tasks to task queue
 			
 			if no_resources:
-				self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
+				# changed
+				if(flag):
+					self.shorttask.insert(0,self.jobs[job_id].tasks[task_id])
+				else:
+					self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
 				continue
 
 			task_mapping_request=self.schedule_task(current_time,self.jobs[job_id].tasks[task_id])
@@ -130,7 +148,12 @@ class GM:
 							self.simulation.lms[prev_LM],
 							)))
 					task_mapping_request_batch=[]
-					self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
+					
+					if(flag):
+						self.shorttask.insert(0,self.jobs[job_id].tasks[task_id])
+					else:
+						self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
+
 					continue
 			if prev_LM == task_mapping_request["LM_id"]:
 				task_mapping_request_batch.append(task_mapping_request)
@@ -166,6 +189,8 @@ class GM:
 					self,
 					self.simulation.lms[prev_LM],
 					)))
+		
+		
 
 	def schedule_task(self, current_time: float,task):
 		"""
@@ -307,10 +332,31 @@ class GM:
 
 			simulator_utils.globals.jobs_completed.append(job)
 		
+		# changed 
+		if(self.shorttask):
+			new_task=self.shorttask.pop(0)
+			new_job=new_task.job
+			key = PartitionKey(gm_id=task.partition_id, lm_id=task.lm.LM_id)
+			new_job.tasks[new_task.task_id].communication_delay+=NETWORK_DELAY
+			# if internal partition node
+			logger.info(f"{MATCHING_LOGIC_MSG} , "
+						f"{task.partition_id}_{task.lm.LM_id}_{task.node_id} , "
+					f"{new_job.job_id}_{new_task.task_id}")
+			new_task.scheduling_attempts+=1
+			simulator_utils.globals.scheduling_attempts+=1
+			self.simulation.event_queue.put(
+				(current_time+NETWORK_DELAY, VerifyRequestEvent(
+					new_task,
+					self,
+					self.simulation.lms[task.lm.LM_id],
+					task.node_id)))	
+			return
+
 		#match free resource to pending task to reduce complexity
 		if(self.task_queue):
 			new_task=self.task_queue.pop(0)
 			new_job=new_task.job
+
 			key = PartitionKey(gm_id=task.partition_id, lm_id=task.lm.LM_id)
 			new_job.tasks[new_task.task_id].communication_delay+=NETWORK_DELAY
 			# if internal partition node
@@ -352,7 +398,13 @@ class GM:
 		Job is inserted back into the task_queue of the GM.
 		"""
 		# simulator_utils.globals.scheduling_attempts-=1
-		self.task_queue.insert(0,unverified_task)
+		
+		
+		# changed
+		if(unverified_task.job.is_short):
+			self.shorttask.insert(0,unverified_task)
+		else:
+			self.task_queue.insert(0,unverified_task)
 		
 				
 

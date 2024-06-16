@@ -606,11 +606,12 @@ class JobArrivalEvent(Event):
     
         if(self.job.is_short):  # first 4 gms are for short job and last one is for long gm
             JobArrivalEvent.gm_counter = (len(self.job.tasks) %
-                                 (self.simulation.NUM_GMS-1)) + 1
+                                 (self.simulation.NUM_GMS-2)) + 1
         else:
-            JobArrivalEvent.gm_counter = self.simulation.NUM_GMS
-            print(self.simulation.NUM_GMS)
-
+            JobArrivalEvent.gm_counter = self.simulation.NUM_GMS-1+((len(self.job.tasks) %
+                                 (self.simulation.NUM_GMS-3)))
+           
+        
         # assigned_GM --> Handle to the global master object
         assigned_GM: GM = self.simulation.gms[str(JobArrivalEvent.gm_counter)]
         # GM needs to add job to its queue

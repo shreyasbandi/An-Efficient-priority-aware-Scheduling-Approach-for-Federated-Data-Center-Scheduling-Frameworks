@@ -193,6 +193,13 @@ class GM:
 	
 	#search for nodes in external partitions
 	def batched_repartition(self,current_time: float, task):
+		
+		job = task.job
+		if not job.is_short:
+			
+			print("long jobs repatition not done")
+			return None 
+		
 		available_partition=False
 		for LM_id in self.LMs_list:
 			for GM_id in self.GMs_list:
@@ -205,6 +212,8 @@ class GM:
 		if not available_partition:
 			return None
 		else:
+			
+			print("Re-pertition for short jobs")
 			simulator_utils.globals.scheduling_attempts+=1
 			task_id=task.task_id
 			job=task.job
@@ -224,7 +233,11 @@ class GM:
 		Args:
 			current_time (float): The current time in the simulation.
 		"""
-		
+		job = task.job
+		if not job.is_short:
+			print("long jobs repatition not done")
+			return None 
+			
 		available_partition=False
 		for LM_id in self.LMs_list:
 			for GM_id in self.GMs_list:
@@ -236,7 +249,7 @@ class GM:
 
 		if not available_partition:
 			return None
-		
+		print("Re-pertition for short jobs")
 		task_id=task.task_id
 		job=task.job
 		simulator_utils.globals.scheduling_attempts+=1
@@ -280,6 +293,7 @@ class GM:
 			job.completion_time = current_time
 			job.end_time = job.completion_time
 			print(current_time,",JC,",job_id,",",job.completion_time-job.start_time-job.ideal_completion_time)
+			print("ideal completion",job.ideal_completion_time)
 			logger.info(
 				f"{current_time} , "
 				"TaskUpdateStatusForGM , "

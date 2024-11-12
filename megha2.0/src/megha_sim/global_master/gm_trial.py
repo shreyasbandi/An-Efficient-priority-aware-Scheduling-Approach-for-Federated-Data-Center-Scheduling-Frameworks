@@ -16,7 +16,7 @@ from simulator_utils import debug_print
 from simulator_utils.values import (LM_HEARTBEAT_INTERVAL, NETWORK_DELAY,
                                     InconsistencyType,
                                     TaskDurationDistributions)
-from events import VerifyRequestEvent,VerifyRequestsEvent
+from events import VerifyRequestEvent,VerifyRequestsEvent,Preemption
 from simulation_logger import (SimulationLogger, MATCHING_LOGIC_MSG,
 							   CLUSTER_SATURATED_MSG,
 							   MATCHING_LOGIC_REPARTITION_MSG)
@@ -66,7 +66,7 @@ class GM:
 		##   made changes here
 		#self.longtasks :List[Job]=[]
 		self.shorttask :List[job]=[]
-
+		
 		## finish
 
 		self.jobs_scheduled: List[Job] = []
@@ -83,6 +83,7 @@ class GM:
 		self.LMs_list=list(config["LMs"].keys())
 		self.GMs_list=list(config["LMs"]["1"]["partitions"].keys())
 		
+		self.p_time=0.01
 		# print(f"LM {self.LMs_list} GM {self.GMs_list}") gives list of lm and gm to gm object
 		
 		#print(f"configLM {config["LMs"]}")
@@ -104,8 +105,9 @@ class GM:
 					for i in range(0,len(config["LMs"][LM_id]["partitions"][partition_id][0])-2):#to get rid of 0b
 						self.external_available_nodes[LM_id][partition_id].append(str(i))
 		debug_print(f"GM {self.GM_id} initialised")
+		# print(self.GM_id)
 		# print(f"LM {self.internal_available_nodes}")
-		# print(f"GM {self.external_available_nodes[LM_id][partition_id]}")
+		# print(f"GM {self.external_available_nodes}")
 
 
 	
@@ -116,12 +118,14 @@ class GM:
 		simulator_utils.globals.jobs_arrived+=1
 		job.gm = self
 		job_id=job.job_id
+		# print(job_id)
+		# print(self.GM_id)
 		self.jobs[job_id]=job
 		# print(f"jobs[job_id] {self.jobs[job_id]}") gives job object
 		no_resources=False
 		task_mapping_request_batch=[] # holds all requests per LM
 		prev_LM=None
-
+		
 		flag=job.is_short
 		for task_id in self.jobs[job_id].tasks:
 			
@@ -130,7 +134,7 @@ class GM:
 			if no_resources:
 				# changed
 				if(flag):
-					self.shorttask.insert(0,self.jobs[job_id].tasks[task_id])
+					self.shorttask.insert(0,(current_time,self.jobs[job_id].tasks[task_id]))
 				else:
 					self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
 				continue
@@ -150,7 +154,8 @@ class GM:
 					task_mapping_request_batch=[]
 					
 					if(flag):
-						self.shorttask.insert(0,self.jobs[job_id].tasks[task_id])
+						self.shorttask.insert(0,(current_time,self.jobs[job_id].tasks[task_id]))
+						#self.shorttask.insert(0,self.jobs[job_id].tasks[task_id])
 					else:
 						self.task_queue.insert(0,self.jobs[job_id].tasks[task_id])
 
@@ -190,7 +195,31 @@ class GM:
 					self.simulation.lms[prev_LM],
 					)))
 		
+		if no_resources and self.shorttask:
+			if not self.simulation.long_event_queue.empty():
+				t1,e1=self.simulation.long_event_queue.get()
+				
+				if(t1<=current_time+2*NETWORK_DELAY):  # 2 network delay is required to preempt a long task if it can complete within that time we will not preempt a task
+					self.simulation.long_event_queue.put((t1,e1))
+				
+				elif current_time-self.shorttask[0][0]>self.p_time: #pre empting a task remember to define ptime
+					self.simulation.long_event_queue.put((t1,e1))
+					self.simulation.event_queue.put((current_time+NETWORK_DELAY,Preemption(
+						self.simulation,self
+					)))
+
+				else:
+					self.simulation.long_event_queue.put((t1,e1))
 		
+		if self.shorttask:
+			simulator_utils.globals.waittime+=current_time-self.shorttask[0][0]
+			simulator_utils.globals.mwaittime=max(current_time-self.shorttask[0][0],simulator_utils.globals.mwaittime)
+			simulator_utils.globals.waittask+=len(self.shorttask)
+			simulator_utils.globals.control+=1
+			simulator_utils.globals.maxwaittask=max(len(self.shorttask),simulator_utils.globals.maxwaittask)
+
+
+
 
 	def schedule_task(self, current_time: float,task):
 		"""
@@ -302,39 +331,79 @@ class GM:
 	#communication from LM saying task completed execution
 	def receive_task_response(self,current_time: float, task: Task):
 		
-		job_id=task.job.job_id
-		job=self.jobs[job_id]
-		if task in job.completed_tasks:
-			print("Error. Duplication.", task.task_id,job.job_id)
-			exit()
-		job.completed_tasks.append(task)
-		print(current_time,"Task completion:",job_id,"/",task.task_id,self.GM_id)
-		if len(job.tasks) == len(job.completed_tasks):  # no more tasks left
-			# NOTE:job completion time = end time of last task
-			# === max of the task duration for a job
-			assert task.end_time is not None
-			assert job.completion_time is not None
-			job.completion_time = current_time
-			job.end_time = job.completion_time
-			print(current_time,",JC,",job_id,",",job.completion_time-job.start_time-job.ideal_completion_time)
-			logger.info(
-				f"{current_time} , "
-				"TaskUpdateStatusForGM , "
-				f"{job.job_id} , "
-				f"{(job.completion_time - job.start_time) - job.ideal_completion_time}")
-			assert ((job.completion_time - job.start_time)
-					) >= 0, ("jct-st "
-							 f"{(job.completion_time - job.start_time)}"
-							 " is negative")
-			assert ((job.completion_time - job.start_time) -
-					job.ideal_completion_time) >= 0, (f"{(job.completion_time - job.start_time) - job.ideal_completion_time} delay is negative")
+		if task is not None:
+			job_id=task.job.job_id
 			
+			# if job_id=='120':
+			# 	print("control ",simulator_utils.globals.control)
+			# 	print("preempts ",simulator_utils.globals.num_preempts)
+			# 	print("wait time ",simulator_utils.globals.waittime)
+			# 	print("max wait time ",simulator_utils.globals.mwaittime)
+			# 	print("wait task ",simulator_utils.globals.waittask)
+			# 	print("max wait task ",simulator_utils.globals.maxwaittask)
 
-			simulator_utils.globals.jobs_completed.append(job)
+			job=self.jobs[job_id]
+			
+			if task in job.completed_tasks:
+				print("Error. Duplication.", task.task_id,job.job_id)
+				exit()
+			job.completed_tasks.append(task)
+			print(current_time,"Task completion:",job_id,"/",task.task_id,self.GM_id)
+			if len(job.tasks) == len(job.completed_tasks):  # no more tasks left
+				# NOTE:job completion time = end time of last task
+				# === max of the task duration for a job
+				assert task.end_time is not None
+				assert job.completion_time is not None
+				job.completion_time = current_time
+				job.end_time = job.completion_time
+				print(current_time,",JC,",job_id,",",job.completion_time-job.start_time-job.ideal_completion_time)
+				logger.info(
+					f"{current_time} , "
+					"TaskUpdateStatusForGM , "
+					f"{job.job_id} , "
+					f"{(job.completion_time - job.start_time) - job.ideal_completion_time}")
+				assert ((job.completion_time - job.start_time)
+						) >= 0, ("jct-st "
+								f"{(job.completion_time - job.start_time)}"
+								" is negative")
+				assert ((job.completion_time - job.start_time) -
+						job.ideal_completion_time) >= 0, (f"{(job.completion_time - job.start_time) - job.ideal_completion_time} delay is negative")
+				
+
+				simulator_utils.globals.jobs_completed.append(job)
 		
-		# changed 
+		flag=False
+		if(task.partition_id==self.GM_id):
+			flag=self.intschedule(current_time,task)
+		else:
+			flag=self.exschdule(current_time,task)
+
+		
+		if flag==False:
+			if(task.partition_id==self.GM_id):
+				self.internal_available_nodes[task.lm.LM_id].append(task.node_id)
+			else:
+				self.external_available_nodes[task.lm.LM_id][task.partition_id].append(task.node_id)
+		
+
+
+		#free resources
+		#else - no tasks waiting in the queue
+		
+		# if(task.partition_id==self.GM_id):
+		# 	self.internal_available_nodes[task.lm.LM_id].append(task.node_id)
+		# else:
+		# 	self.external_available_nodes[task.lm.LM_id][task.partition_id].append(task.node_id)
+
+
+
+
+	def intschedule(self,current_time: float, task: Task):
 		if(self.shorttask):
-			new_task=self.shorttask.pop(0)
+			#new_task=self.shorttask.pop(0)
+			
+			i,new_task=self.shorttask.pop(0)
+			
 			new_job=new_task.job
 			key = PartitionKey(gm_id=task.partition_id, lm_id=task.lm.LM_id)
 			new_job.tasks[new_task.task_id].communication_delay+=NETWORK_DELAY
@@ -350,7 +419,7 @@ class GM:
 					self,
 					self.simulation.lms[task.lm.LM_id],
 					task.node_id)))	
-			return
+			return True
 
 		#match free resource to pending task to reduce complexity
 		if(self.task_queue):
@@ -371,16 +440,71 @@ class GM:
 					self,
 					self.simulation.lms[task.lm.LM_id],
 					task.node_id)))	
-			return
+			return True
+		
+		return False
 
-		#free resources
-		#else - no tasks waiting in the queue
+	def exschdule(self,current_time: float, task: Task):
+		if(self.shorttask):
+			#new_task=self.shorttask.pop(0)
+			
+			i,new_task=self.shorttask.pop(0)
+			
+			new_job=new_task.job
+			key = PartitionKey(gm_id=task.partition_id, lm_id=task.lm.LM_id)
+			new_job.tasks[new_task.task_id].communication_delay+=NETWORK_DELAY
+			# if internal partition node
+			logger.info(f"{MATCHING_LOGIC_MSG} , "
+						f"{task.partition_id}_{task.lm.LM_id}_{task.node_id} , "
+					f"{new_job.job_id}_{new_task.task_id}")
+			new_task.scheduling_attempts+=1
+			simulator_utils.globals.scheduling_attempts+=1
+			self.simulation.event_queue.put(
+				(current_time+NETWORK_DELAY, VerifyRequestEvent(
+					new_task,
+					self,
+					self.simulation.lms[task.lm.LM_id],
+					task.node_id,task.partition_id)))	
+			return True
 
+		#match free resource to pending task to reduce complexity
+		if(self.task_queue):
+			new_task=self.task_queue.pop(0)
+			new_job=new_task.job
+
+			key = PartitionKey(gm_id=task.partition_id, lm_id=task.lm.LM_id)
+			new_job.tasks[new_task.task_id].communication_delay+=NETWORK_DELAY
+			# if internal partition node
+			logger.info(f"{MATCHING_LOGIC_MSG} , "
+						f"{task.partition_id}_{task.lm.LM_id}_{task.node_id} , "
+					f"{new_job.job_id}_{new_task.task_id}")
+			new_task.scheduling_attempts+=1
+			simulator_utils.globals.scheduling_attempts+=1
+			self.simulation.event_queue.put(
+				(current_time+NETWORK_DELAY, VerifyRequestEvent(
+					new_task,
+					self,
+					self.simulation.lms[task.lm.LM_id],
+					task.node_id,task.partition_id)))	
+			
+			return True
+		return False 
+
+	def preempt_task_responce(self,current_time: float, task: Task):
+		flag=False
 		if(task.partition_id==self.GM_id):
-			self.internal_available_nodes[task.lm.LM_id].append(task.node_id)
+			flag=self.intschedule(current_time,task)
 		else:
-			self.external_available_nodes[task.lm.LM_id][task.partition_id].append(task.node_id)
+			flag=self.exschdule(current_time,task)
 
+		if flag==False:
+			if(task.partition_id==self.GM_id):
+				self.internal_available_nodes[task.lm.LM_id].append(task.node_id)
+			else:
+				self.external_available_nodes[task.lm.LM_id][task.partition_id].append(task.node_id)
+
+
+			
 	#update sent from LM
 	def update_status(self,lm:LM,latest_LM_config,current_time):
 		LM_id=lm.LM_id
@@ -393,7 +517,7 @@ class GM:
 				self.external_available_nodes[LM_id][partition_id]=partition
 
 	# in case of an inconsistency event
-	def unschedule_task(self, unverified_task: Task):
+	def unschedule_task(self, unverified_task: Task,current_time):
 		"""
 		Job is inserted back into the task_queue of the GM.
 		"""
@@ -402,7 +526,9 @@ class GM:
 		
 		# changed
 		if(unverified_task.job.is_short):
-			self.shorttask.insert(0,unverified_task)
+			self.shorttask.insert(0,(current_time,unverified_task))
+			self.shorttask.sort(key=lambda x: x[0]) 
+			#self.shorttask.insert(0,unverified_task)
 		else:
 			self.task_queue.insert(0,unverified_task)
 		

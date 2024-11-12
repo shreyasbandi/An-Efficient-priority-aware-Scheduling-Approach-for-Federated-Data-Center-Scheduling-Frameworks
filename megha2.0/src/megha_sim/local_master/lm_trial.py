@@ -56,10 +56,18 @@ class LM(object):
             gm,
             node_id,
             current_time,
-            external_partition=None):
+            external_partition=None,
+            # setnode=False
+            # 
+            ):
         node_id=int(node_id)
         # debug_print(f"LM {self.LM_id} verifying request")
         # check if repartitioning
+
+        # if setnode:
+        #     self.LM_config["partitions"][task.partition_id][node_id]= True
+
+
         if(external_partition is not None):
             if (self.LM_config["partitions"][external_partition]
                     [node_id]):
@@ -114,7 +122,9 @@ class LM(object):
             task_mappings,
             gm,
             current_time):
-    
+
+        #LM_config["partitions"][task.partition_id][task.node_id]
+
         inconsistent_mappings=[]
         for task_mapping in task_mappings:
             task=task_mapping["task"]
@@ -167,5 +177,8 @@ class LM(object):
                                          TaskResponseEvent(
                                              self.simulation,
                                              self.simulation.gms[task.GM_id],task)))
+
+    def preempt_task(self,task):
+        self.LM_config["partitions"][task.partition_id][task.node_id]= True
 
    

@@ -11,7 +11,7 @@ from simulation_logger import SimulationLogger
 from simulator_utils.values import TaskDurationDistributions
 from events import JobArrivalEvent, LMRequestUpdateEvent, InconsistencyEvent
 from simulator_utils import debug_print
-
+import simulator_utils.globals
 import os
 import sys
 
@@ -48,6 +48,11 @@ class Simulation(object):
         self.task_occurrence_type={} #weights for generating task placement constraints
         self.jobs = {}
         self.event_queue = queue.PriorityQueue()
+
+        # changed
+        self.long_event_queue = queue.PriorityQueue()
+
+
         self.job_queue=[]
         self.gm_counter=0
         # initialise GMs
@@ -87,12 +92,15 @@ class Simulation(object):
  # Simulation class
     def run(self):
         last_time = 0
-    
+        
+        
+
         self.jobs_file = open(self.WORKLOAD_FILE, 'r')
 
         self.task_distribution = TaskDurationDistributions.FROM_FILE
 
         line = self.jobs_file.readline()  # first job
+        
         new_job = Job(self.task_distribution, line, self)
         # starting the periodic LM updates
         self.event_queue.put((float(line.split()[0])-0.05, LMRequestUpdateEvent(self)))
@@ -101,12 +109,58 @@ class Simulation(object):
         
         
         self.jobs_scheduled = 1
-
+        
+        
+                
         # start processing events
         while (not self.event_queue.empty()):
             current_time, event = self.event_queue.get()
-            assert current_time >= last_time
-            last_time = current_time
+            # changed
+            flag=True
+            if not self.long_event_queue.empty():
+                t1,e1=self.long_event_queue.get()
+                if(t1<current_time):
+                    new_events = e1.run(t1)
+                    self.event_queue.put((current_time,event))
+                    flag=False
+                    if(new_events is None):
+                        continue
+                    for new_event in new_events:
+                        if(new_event is None):
+                            continue
+                        self.event_queue.put(new_event)
+     
+                else:
+                    self.long_event_queue.put((t1,e1))
+
+            if(flag):
+                assert current_time >= last_time
+                last_time = current_time
+                new_events = event.run(current_time)
+                if(new_events is None):
+                    continue
+                for new_event in new_events:
+                    if(new_event is None):
+                        continue
+                    self.event_queue.put(new_event)
+        
+        
+        while(not self.long_event_queue.empty()):
+            current_time, event = self.long_event_queue.get()
+            new_events = event.run(current_time)
+            if(new_events is None):
+                continue
+            for new_event in new_events:
+                if(new_event is None):
+                    continue
+                print("Danger danger")
+                self.event_queue.put(new_event)
+        
+        while(not self.event_queue.empty() or not self.long_event_queue.empty()):
+            if not self.long_event_queue.empty():
+                self.event_queue.put(self.long_event_queue.get())
+
+            current_time, event = self.event_queue.get()
             new_events = event.run(current_time)
             if(new_events is None):
                 continue
@@ -114,7 +168,11 @@ class Simulation(object):
                 if(new_event is None):
                     continue
                 self.event_queue.put(new_event)
-
         # print("Simulation ending, no more events")
         # logger.info("Simulator Info , Simulation ending, no more events")
+        
+        
+        
+        print(self.long_event_queue.empty(),self.event_queue.empty())
+        print("Arrived jobs ",simulator_utils.globals.jobs_arrived)
         self.jobs_file.close()

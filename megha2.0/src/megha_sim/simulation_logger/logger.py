@@ -191,7 +191,8 @@ class Logger:
                 job_id = vals[2]
                 task_id = vals[3]
                 # Task duration as per the trace dataset
-                duration = int(vals[-2])
+                #duration = int(vals[-2])
+                duration = float(vals[-2])
                 # Job start time is the job arrival time
                 start_time = float(vals[-1])
                 task_qd = current_time - start_time

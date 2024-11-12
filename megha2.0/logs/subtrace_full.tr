@@ -1,0 +1,37 @@
+Analysing logs for trace file: subtrace_full.tr
+Simulator Info , Received CMD line arguments.
+Simulator Info , Simulation running
+Simulator Info , Number of Jobs completed: 24262
+
+
+--------------------------------------------------------------------------------
+
+[1minternal_matching_logic_op[0m : 968296
+[1mexternal_matching_logic_op[0m : 0
+[1mtask_end_event[0m : 968335
+[1mlaunch_on_node_event[0m : 969964
+[1minternal_inconsistency_event[0m : 346
+[1mexternal_inconsistency_event[0m : 1283
+[1mmatch_found_event[0m : 0
+[1mperiodic_lm_update_event[0m : 581302
+[1maperiodic_lm_update_event[0m : 0
+[1mjob_arrival_event[0m : 0
+[1mcluster_saturated_event[0m : 0
+
+
+--------------------------------------------------------------------------------
+
+Derived attributes:
+[1mTotal Inconsistency count :[0m 1629
+[1mTotal matching logic operations :[0m 968296
+[1mPercentage ratio of free worker found to number of workers searched[0m = success_percent=99.816487%
+[1mAverage number of workers searched per task =[0m 1.0037067750228046
+
+
+--------------------------------------------------------------------------------
+
+[1mLog sanity checks:[0m
+
+[91mFAILURE:[0m
+Matching Logic Operations accounted for (968296) != Sum of all Matching Logic Operations across all tasks (968296)
+Measurements (964720) != tasks_completed_count (968335)

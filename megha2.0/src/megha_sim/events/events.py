@@ -198,8 +198,17 @@ class LaunchOnNodeEvent(Event):
         # print(current_time,"LaunchOnNodeEvent","job:",self.task.job.job_id,"task:",self.task.task_id,"node:",self.task.node_id,"LM:",self.task.lm.LM_id,"GM:",self.task.GM_id)
 
         # launching requires network transfer
-        self.simulation.event_queue.put(
-            (current_time + self.task.duration, TaskEndEvent(self.task)))
+
+        #-------------------------------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------
+        
+        if self.task.job.is_short==False:
+            self.simulation.long_event_queue.put(
+                (current_time + self.task.duration, TaskEndEvent(self.task))
+            )
+        else:
+            self.simulation.event_queue.put(
+                (current_time + self.task.duration, TaskEndEvent(self.task)))
 
 
 ##########################################################################
@@ -265,7 +274,7 @@ class InconsistencyEvent(Event):
 
         # If the job is already moved to jobs_scheduled queue, then we need to
         # remove it and add it to the front of the queue.
-        self.gm.unschedule_task(self.task)
+        self.gm.unschedule_task(self.task,current_time)
         self.gm.update_status(self.lm,self.status,current_time)
         
 ##########################################################################
@@ -316,7 +325,8 @@ class BatchedInconsistencyEvent(Event):
         # remove it and add it to the front of the queue.
 
         for task_mapping in self.inconsistent_task_mappings:
-            self.gm.unschedule_task(task_mapping["task"])
+            #self.gm.unschedule_task(task_mapping["task"])
+            self.gm.unschedule_task(task_mapping["task"],current_time)
 
         self.gm.update_status(self.lm,self.lm_update,current_time)
         
@@ -399,7 +409,9 @@ class VerifyRequestEvent(Event):
             gm: GM,
             lm: LM,
             node_id: str,
-            external_partition: Optional[str] = None):
+            external_partition: Optional[str] = None,
+            # setnode: Optional[bool]=False
+            ):
         """
         Initialise the instance of the `VerifyRequestEvent` class.
 
@@ -419,7 +431,7 @@ class VerifyRequestEvent(Event):
         self.lm = lm
         self.node_id = node_id
         self.external_partition = external_partition
-
+        # self.setnode=setnode
 
     def run(self, current_time: float):
         """
@@ -604,14 +616,17 @@ class JobArrivalEvent(Event):
         # needs to be assigned to a GM - RR
         
     
-        if(self.job.is_short):  # first 4 gms are for short job and last one is for long gm
-            JobArrivalEvent.gm_counter = (len(self.job.tasks) %
-                                 (self.simulation.NUM_GMS-2)) + 1
-        else:
-            JobArrivalEvent.gm_counter = self.simulation.NUM_GMS-1+((len(self.job.tasks) %
-                                 (self.simulation.NUM_GMS-3)))
+        # if(self.job.is_short):  # first 3 gms are for short job and last one is for long gm
+        #     JobArrivalEvent.gm_counter = (len(self.job.tasks) %
+        #                          (self.simulation.NUM_GMS-2)) + 1
+        # else:
+        #     JobArrivalEvent.gm_counter = self.simulation.NUM_GMS-1+((len(self.job.tasks) %
+        #                          (self.simulation.NUM_GMS-3)))
+
+        JobArrivalEvent.gm_counter = (len(self.job.tasks) %
+                               (self.simulation.NUM_GMS)) + 1
            
-        
+        # JobArrivalEvent.gm_counter=self.simulation.NUM_GMS
         # assigned_GM --> Handle to the global master object
         assigned_GM: GM = self.simulation.gms[str(JobArrivalEvent.gm_counter)]
         # GM needs to add job to its queue
@@ -626,3 +641,61 @@ class JobArrivalEvent(Event):
             new_events.append((self.job.start_time, self))
             self.simulation.jobs_scheduled += 1
         return new_events
+
+####################################################################################################################
+####################################################################################################################
+class Preemption(Event):
+
+    def __init__(self,simulation: Simulation,gm: GM):
+        self.simulation=simulation
+        self.gm=gm
+        
+
+
+    def run(self,current_time:float):
+        t1,e1=self.simulation.long_event_queue.get()
+        # print("old",e1.task.duration)
+        e1.task.duration=t1-current_time-NETWORK_DELAY
+        # print("new",e1.task.duration)
+        job_id=e1.task.job.job_id
+        simulator_utils.globals.num_preempts+=1
+        self.simulation.event_queue.put((current_time+NETWORK_DELAY,Handlepreemption(
+            self.simulation,self.gm,e1.task
+            )))
+
+
+############################################################################################################
+############################################################################################################
+
+class Handlepreemption(Event):
+    def __init__(self,simulation: Simulation,gm: GM,task:Task):
+        self.simulation=simulation
+        self.gm=gm
+        self.task= task
+    
+    def run(self,current_time:float):
+        # if self.task.lm is not None:
+        #     self.task.lm.preempt_task(self.task)
+        # self.gm.unschedule_task(self.task,current_time)
+        # self.gm.preempt_task_responce(current_time,self.task)
+        #self.task.GM_id.unschedule_task(self.task)
+        if self.task.lm is not None:
+            self.simulation.event_queue.put((current_time+0.004,setst(
+            self.simulation,self.task
+            )))
+        self.simulation.gms[self.task.GM_id].unschedule_task(self.task,current_time)
+        self.gm.preempt_task_responce(current_time,self.task)
+
+class setst(Event):
+    def __init__(self,simulation: Simulation,task:Task):
+        self.simulation=simulation
+        self.task= task
+    
+    def run(self,current_time:float):
+        # if self.task.lm is not None:
+        #     self.task.lm.preempt_task(self.task)
+        # self.gm.unschedule_task(self.task,current_time)
+        # self.gm.preempt_task_responce(current_time,self.task)
+        #self.task.GM_id.unschedule_task(self.task)
+        # print("fndsfffffffffffffffff")
+        self.task.lm.LM_config["partitions"][self.task.partition_id][self.task.node_id]= True

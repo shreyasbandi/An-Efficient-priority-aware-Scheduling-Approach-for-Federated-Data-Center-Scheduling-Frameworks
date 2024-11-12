@@ -1,0 +1,37 @@
+Analysing logs for trace file: subtrace_apna.tr
+Simulator Info , Received CMD line arguments.
+Simulator Info , Simulation running
+Simulator Info , Number of Jobs completed: 276
+
+
+--------------------------------------------------------------------------------
+
+[1minternal_matching_logic_op[0m : 5220
+[1mexternal_matching_logic_op[0m : 0
+[1mtask_end_event[0m : 6950
+[1mlaunch_on_node_event[0m : 6953
+[1minternal_inconsistency_event[0m : 0
+[1mexternal_inconsistency_event[0m : 3
+[1mmatch_found_event[0m : 0
+[1mperiodic_lm_update_event[0m : 1182
+[1maperiodic_lm_update_event[0m : 0
+[1mjob_arrival_event[0m : 0
+[1mcluster_saturated_event[0m : 0
+
+
+--------------------------------------------------------------------------------
+
+Derived attributes:
+[1mTotal Inconsistency count :[0m 3
+[1mTotal matching logic operations :[0m 5220
+[1mPercentage ratio of free worker found to number of workers searched[0m = success_percent=97.240752%
+[1mAverage number of workers searched per task =[0m 1.055184960582171
+
+
+--------------------------------------------------------------------------------
+
+[1mLog sanity checks:[0m
+
+[91mFAILURE:[0m
+Matching Logic Operations accounted for (5220) != Sum of all Matching Logic Operations across all tasks (5220)
+Measurements (4947) != tasks_completed_count (6950)

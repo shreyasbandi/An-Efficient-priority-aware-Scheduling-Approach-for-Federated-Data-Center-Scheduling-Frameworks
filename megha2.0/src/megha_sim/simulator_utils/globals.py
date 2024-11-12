@@ -18,3 +18,10 @@ total_tasks: int = 0
 scheduling_attempts: int = 0
 inconsistencies: int = 0
 DEBUG_MODE: bool = not False
+num_preempts:int =0
+
+control:int =0
+waittime:int =0
+mwaittime:int =0
+waittask:int =0
+maxwaittask:int =0
